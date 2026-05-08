@@ -52,7 +52,7 @@ ax.set_title('Caroteno ($\mu_a$)', fontweight='bold', fontsize=14)
 ax.set_xlabel('Comprimento de Onda (nm)', fontsize=12)
 ax.set_ylabel('Absorção', fontsize=12)
 ax.set_xlim(380, 780)
-ax.set_ylim(0, 1000000)
+ax.set_ylim(0, 300000)
 ax.grid(True, ls="--", alpha=0.5)
 
 plt.show()

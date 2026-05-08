@@ -1,14 +1,10 @@
-
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
-import matplotlib.patches as patches
 import pandas as pd
 from scipy.spatial import ConvexHull
-import time
+import dearpygui.dearpygui as dpg
 
 # ==========================================
-# 1. DEFINIÇÃO DO EIXO E GAUSSIANAS
+# 1 a 3. FÍSICA E MATEMÁTICA (MANTIDO INTACTO)
 # ==========================================
 Lambdas = np.linspace(380, 780, 400)
 delta_lambda = Lambdas[1] - Lambdas[0]
@@ -21,23 +17,8 @@ def gauss_asym(x, amp, mu, sig_left, sig_right):
 def gauss(x, amp, mu, sigma):
     return amp * np.exp(-0.5 * ((x - mu) / sigma)**2)
 
-# ==========================================
-# 2. PROPRIEDADES ÓTICAS: PELE (HÍBRIDO)
-# ==========================================
-mu_a_hbo2 = (
-    gauss(Lambdas, 2750.0, 415, 14) +   
-    gauss(Lambdas, 270.0, 542, 11) +    
-    gauss(Lambdas, 287.0, 577, 9) +     
-    gauss(Lambdas, 70.0,  455, 70) +
-    gauss(Lambdas, 4.0,   800, 70)     
-)
-
-mu_a_hb = (
-    gauss(Lambdas, 2950.0, 434, 14) +   
-    gauss(Lambdas, 255.0, 555, 30) +    
-    gauss(Lambdas, 50.0,  500, 55) +
-    gauss(Lambdas, 10.0,  620, 100)     
-)
+mu_a_hbo2 = gauss(Lambdas, 2750.0, 415, 14) + gauss(Lambdas, 270.0, 542, 11) + gauss(Lambdas, 287.0, 577, 9) + gauss(Lambdas, 70.0,  455, 70) + gauss(Lambdas, 4.0,   800, 70)
+mu_a_hb = gauss(Lambdas, 2950.0, 434, 14) + gauss(Lambdas, 255.0, 555, 30) + gauss(Lambdas, 50.0,  500, 55) + gauss(Lambdas, 10.0,  620, 100)
 mu_a_base_derme = 0.008 * np.ones_like(Lambdas)
 
 A_fit, B_fit, C_fit = 7.49, 2.18, 2.41
@@ -48,24 +29,14 @@ def calcular_espalhamento(S):
     lambdas_norm = Lambdas / 500.0
     return S * a_cm * (f_R * (lambdas_norm)**(-4) + (1 - f_R) * (lambdas_norm)**(-b_Mie))
 
-# ==========================================
-# 3. COLORIMETRIA FÍSICA E ESPAÇO LAB
-# ==========================================
 T_ilum = 5000.0
 c2 = 1.4388e7 
 S_ilum = (Lambdas**-5) / (np.exp(c2 / (Lambdas * T_ilum)) - 1.0)
-
-x_bar = (gauss_asym(Lambdas, 0.3483, 439.6, 17.5, 22.9) + 
-           gauss_asym(Lambdas, 1.1560, 600.0, 36.5722, 31.8083))
-
-# --- AJUSTE PARA Y_BARRA ---
-y_bar = (gauss_asym(Lambdas, 1.0144, 553.8, 39.16, 49.63) )
-
-# --- AJUSTE PARA Z_BARRA ---
-z_bar = (gauss_asym(Lambdas, 1.9158, 442.0833, 18.8778, 28.5417))
+x_bar = gauss_asym(Lambdas, 0.3483, 439.6, 17.5, 22.9) + gauss_asym(Lambdas, 1.1560, 600.0, 36.5722, 31.8083)
+y_bar = gauss_asym(Lambdas, 1.0144, 553.8, 39.16, 49.63)
+z_bar = gauss_asym(Lambdas, 1.9158, 442.0833, 18.8778, 28.5417)
 
 k_norm = 100.0 / np.sum(S_ilum * y_bar * delta_lambda)
-
 Xn = k_norm * np.sum(S_ilum * x_bar * delta_lambda)
 Yn = k_norm * np.sum(S_ilum * y_bar * delta_lambda)
 Zn = k_norm * np.sum(S_ilum * z_bar * delta_lambda)
@@ -77,12 +48,7 @@ def calcular_cor_XYZ(R_d):
     return X, Y, Z
 
 def xyz_para_lab(X, Y, Z):
-    def f(t):
-        if t > (6.0/29.0)**3:
-            return t**(1.0/3.0)
-        else:
-            return (1.0/3.0) * ((29.0/6.0)**2) * t + 4.0/29.0
-            
+    def f(t): return t**(1.0/3.0) if t > (6.0/29.0)**3 else (1.0/3.0) * ((29.0/6.0)**2) * t + 4.0/29.0
     L = 116.0 * f(Y/Yn) - 16.0
     a = 500.0 * (f(X/Xn) - f(Y/Yn))
     b = 200.0 * (f(Y/Yn) - f(Z/Zn))
@@ -94,15 +60,13 @@ def xyz_para_rgb_monitor(X, Y, Z):
     g = -0.9689 * x + 1.8758 * y + 0.0415 * z
     b_val =  0.0557 * x - 0.2040 * y + 1.0570 * z
     r, g, b_val = np.clip([r, g, b_val], 0, 1)
-    
     def gamma(c): return np.where(c <= 0.0031308, 12.92 * c, 1.055 * (c ** (1/2.4)) - 0.055)
-    return float(gamma(r)), float(gamma(g)), float(gamma(b_val))
+    return float(gamma(r)*255), float(gamma(g)*255), float(gamma(b_val)*255)
 
 def calcular_reflectancia_bicamada(peso_melanina, d_epi_mm, v_sangue, sat_o2, S=1.0):
     d_epi_cm = d_epi_mm / 10.0 
     mu_a_epi = peso_melanina * mu_a_epiderme_fitada
     T_epi_ida_volta = np.exp(-mu_a_epi * d_epi_cm)**2
-    
     c_hbo2, c_hb = v_sangue * sat_o2, v_sangue * (1 - sat_o2)
     mu_a_derme = (c_hbo2 * mu_a_hbo2) + (c_hb * mu_a_hb) + mu_a_base_derme
     mu_s_total = calcular_espalhamento(S)
@@ -114,14 +78,17 @@ def calcular_reflectancia_bicamada(peso_melanina, d_epi_mm, v_sangue, sat_o2, S=
     D = 1.0 / (3.0 * mu_t_prime)
     A = 3.2
     zb = 2.0 * A * D
-    
     R_derme = (a_prime / 2.0) * (np.exp(-mu_eff * z0) + np.exp(-mu_eff * (z0 + 2.0 * zb)))
     return T_epi_ida_volta * R_derme
+
 
 # ==========================================
 # 4. LEITURA DA BASE DE DADOS (Envelope Real)
 # ==========================================
 tem_dados_reais = False
+b_envelope = []
+L_envelope = []
+
 try:
     nome_arquivo = 'Skin Database 1-92.xlsx'
     
@@ -138,116 +105,119 @@ try:
     
     if len(L_real) > 10:
         pontos_reais = np.column_stack((b_real, L_real))
-        from scipy.spatial import ConvexHull
         envelope_real = ConvexHull(pontos_reais)
+        
+        vertices = envelope_real.vertices
+        # Fechamos o polígono repetindo o primeiro vértice no final
+        vertices_fechados = np.append(vertices, vertices[0])
+        
+        # Guardamos as listas prontas para o DearPyGui
+        b_envelope = pontos_reais[vertices_fechados, 0].tolist()
+        L_envelope = pontos_reais[vertices_fechados, 1].tolist()
         tem_dados_reais = True
+        
 except Exception as e:
-    pass
+    print(f"Aviso: Base de dados não encontrada ou erro na leitura ({e}). O envelope não será desenhado.")
+
 
 # ==========================================
-# 5. CONFIGURAÇÃO DA INTERFACE GRÁFICA
+# 5. VARIÁVEIS GLOBAIS DE ESTADO DA UI
 # ==========================================
-fig = plt.figure(figsize=(15, 8))
-fig.canvas.manager.set_window_title('Simulador Analítico (Exploração de Espalhamento S)')
-plt.subplots_adjust(bottom=0.45)
-
-ax_grafico = plt.axes([0.05, 0.45, 0.25, 0.45])  
-ax_cor = plt.axes([0.34, 0.70, 0.08, 0.20])      
-ax_banana = plt.axes([0.48, 0.45, 0.48, 0.45])   
-
-ax_cor.axis('off') 
-
-peso_mel_init, d_epi_init, v_sangue_init, sat_o2_init, S_init = 1.0, 0.05, 0.02, 0.70, 1.0
-
-R_init = calcular_reflectancia_bicamada(peso_mel_init, d_epi_init, v_sangue_init, sat_o2_init, S_init)
-X_i, Y_i, Z_i = calcular_cor_XYZ(R_init)
-L_i, a_i, b_i = xyz_para_lab(X_i, Y_i, Z_i)
-rgb_init = xyz_para_rgb_monitor(X_i, Y_i, Z_i)
-
-historico_b = [b_i]
-historico_L = [L_i]
-
-linha_grafico, = ax_grafico.plot(Lambdas, R_init, color='maroon', linewidth=2)
-ax_grafico.set_title('Reflectância', fontweight='bold', fontsize=11)
-ax_grafico.set_ylim(0, 1.0)
-ax_grafico.grid(True, ls="--", alpha=0.4)
-
-patch_cor = patches.Rectangle((0, 0), 1, 1, facecolor=rgb_init)
-ax_cor.add_patch(patch_cor)
-ax_cor.set_title('Cor (5000K)', fontweight='bold', fontsize=10)
-texto_lab = fig.text(0.34, 0.50, f"L* = {L_i:.1f}\na* = {a_i:.1f}\nb* = {b_i:.1f}", fontsize=11, family='monospace', fontweight='bold')
-
-# --- Painel 3: A Área da Banana (Sem as bolinhas) ---
-if tem_dados_reais:
-    vertices = envelope_real.vertices
-    vertices_fechados = np.append(vertices, vertices[0])
-    ax_banana.fill(pontos_reais[vertices_fechados, 0], pontos_reais[vertices_fechados, 1], color='lightgray', alpha=0.4, label='Envelope Real')
-    ax_banana.plot(pontos_reais[vertices_fechados, 0], pontos_reais[vertices_fechados, 1], color='black', linestyle=':', linewidth=2)
-
-rastro_banana, = ax_banana.plot(historico_b, historico_L, color='dimgray', linestyle='-', linewidth=2, alpha=0.7, zorder=4, label='Rastro')
-cursor_banana, = ax_banana.plot(b_i, L_i, marker='X', color='black', markersize=16, markeredgecolor='white', label='Paciente Atual', zorder=5)
-
-ax_banana.set_title('Gráfico de Banana Invertido (b* vs L*)', fontweight='bold', fontsize=14)
-ax_banana.set_xlabel('b* (Azul -> Amarelo)', fontsize=12)
-ax_banana.set_ylabel('L* (Luminosidade: Escuro -> Claro)', fontsize=12)
-ax_banana.grid(True, ls="--", alpha=0.6)
-ax_banana.legend(fontsize=10)
-
-ax_banana.set_xlim(-5, 50)
-ax_banana.set_ylim(0, 100)
+historico_b = []
+historico_L = []
 
 # ==========================================
-# 6. SLIDERS E ATUALIZAÇÃO
+# 6. FUNÇÃO DE ATUALIZAÇÃO (CALLBACK)
 # ==========================================
-ax_mel = plt.axes([0.15, 0.35, 0.70, 0.03])
-ax_esp = plt.axes([0.15, 0.28, 0.70, 0.03])
-ax_san = plt.axes([0.15, 0.21, 0.70, 0.03])
-ax_sat = plt.axes([0.15, 0.14, 0.70, 0.03])
-ax_S   = plt.axes([0.15, 0.07, 0.70, 0.03])
-
-slider_mel = Slider(ax_mel, 'Peso Melanina', 0.1, 8.0, valinit=peso_mel_init, color='saddlebrown')
-slider_esp = Slider(ax_esp, 'Espes. Epiderme (mm)', 0.007, 0.50, valinit=d_epi_init, color='grey')
-slider_san = Slider(ax_san, 'Fraç. Sangue', 0.001, 0.15, valinit=v_sangue_init, color='red')
-slider_sat = Slider(ax_sat, 'Saturação O2', 0.0, 1.0, valinit=sat_o2_init, color='blue')
-slider_S   = Slider(ax_S,   'Espalhamento (S)', 0.1, 3.0, valinit=S_init, color='orange')
-
-ultima_atualizacao = time.time()
-
-def atualizar(val):
-    global ultima_atualizacao
-    agora = time.time()
+def atualizar_simulacao(sender, app_data):
+    mel = dpg.get_value("slider_mel")
+    esp = dpg.get_value("slider_esp")
+    san = dpg.get_value("slider_san")
+    sat = dpg.get_value("slider_sat")
+    s_val = dpg.get_value("slider_S")
     
-    if agora - ultima_atualizacao < 0.05:
-        return
-    ultima_atualizacao = agora
-
-    novo_R = calcular_reflectancia_bicamada(slider_mel.val, slider_esp.val, slider_san.val, slider_sat.val, slider_S.val)
-    nX, nY, nZ = calcular_cor_XYZ(novo_R)
-    nL, na, nb = xyz_para_lab(nX, nY, nZ)
-    nRGB = xyz_para_rgb_monitor(nX, nY, nZ)
+    R = calcular_reflectancia_bicamada(mel, esp, san, sat, s_val)
+    X, Y, Z = calcular_cor_XYZ(R)
+    L, a, b = xyz_para_lab(X, Y, Z)
+    r, g, b_cor = xyz_para_rgb_monitor(X, Y, Z)
     
-    linha_grafico.set_ydata(novo_R)
-    patch_cor.set_facecolor(nRGB)
-    texto_lab.set_text(f"L* = {nL:.1f}\na* = {na:.1f}\nb* = {nb:.1f}")
+    dpg.set_value("linha_reflectancia", [Lambdas.tolist(), R.tolist()])
+    dpg.set_value("texto_lab", f"L* = {L:.1f} | a* = {a:.1f} | b* = {b:.1f}")
+    dpg.configure_item("retangulo_cor", fill=[r, g, b_cor, 255])
     
-    if ((nb - historico_b[-1])**2 + (nL - historico_L[-1])**2)**0.5 > 0.5:
-        historico_b.append(nb)
-        historico_L.append(nL)
-        if len(historico_b) > 30:
+    global historico_b, historico_L
+    if not historico_b or ((b - historico_b[-1])**2 + (L - historico_L[-1])**2)**0.5 > 0.1:
+        historico_b.append(b)
+        historico_L.append(L)
+        # Ajuste o número abaixo caso queira o rastro mais longo ou mais curto
+        if len(historico_b) > 15:
             historico_b.pop(0)
             historico_L.pop(0)
-        rastro_banana.set_xdata(historico_b)
-        rastro_banana.set_ydata(historico_L)
-    
-    cursor_banana.set_xdata([nb])
-    cursor_banana.set_ydata([nL])
-    
-    fig.canvas.draw_idle()
+            
+    dpg.set_value("linha_rastro", [historico_b, historico_L])
+    dpg.set_value("ponto_atual", [[b], [L]])
 
-slider_mel.on_changed(atualizar)
-slider_esp.on_changed(atualizar)
-slider_san.on_changed(atualizar)
-slider_sat.on_changed(atualizar)
-slider_S.on_changed(atualizar)
+# ==========================================
+# 7. CONSTRUÇÃO DA INTERFACE COM DEARPYGUI
+# ==========================================
+dpg.create_context()
 
-plt.show()  
+with dpg.window(label="Simulador Analítico de Pele", width=1200, height=800):
+    
+    with dpg.group(horizontal=True):
+        
+        # --- PAINEL ESQUERDO ---
+        with dpg.child_window(width=600):
+            dpg.add_text("Propriedades Ópticas", color=[255, 200, 0])
+            
+            dpg.add_slider_float(label="Peso Melanina", tag="slider_mel", default_value=1.0, min_value=0.1, max_value=8.0, callback=atualizar_simulacao)
+            dpg.add_slider_float(label="Espes. Epiderme (mm)", tag="slider_esp", default_value=0.05, min_value=0.007, max_value=0.50, callback=atualizar_simulacao)
+            dpg.add_slider_float(label="Fraç. Sangue", tag="slider_san", default_value=0.02, min_value=0.001, max_value=0.15, callback=atualizar_simulacao)
+            dpg.add_slider_float(label="Saturação O2", tag="slider_sat", default_value=0.70, min_value=0.0, max_value=1.0, callback=atualizar_simulacao)
+            dpg.add_slider_float(label="Espalhamento (S)", tag="slider_S", default_value=1.0, min_value=0.1, max_value=3.0, callback=atualizar_simulacao)
+            
+            dpg.add_spacing(count=5)
+            dpg.add_separator()
+            dpg.add_spacing(count=5)
+            
+            with dpg.group(horizontal=True):
+                with dpg.drawlist(width=100, height=100):
+                    dpg.draw_rectangle(pmin=[0, 0], pmax=[100, 100], color=[255, 255, 255], fill=[255, 200, 150, 255], tag="retangulo_cor")
+                dpg.add_text("Valores CIELAB:", tag="texto_lab")
+
+            dpg.add_spacing(count=10)
+            
+            with dpg.plot(label="Reflectância", height=350, width=-1):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="Comprimento de Onda (nm)")
+                with dpg.plot_axis(dpg.mvYAxis, label="R"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, 1.0)
+                    # CORRIGIDO: Removido o argumento "color="
+                    dpg.add_line_series([], [], label="Espectro Simulado", tag="linha_reflectancia")
+
+        # --- PAINEL DIREITO ---
+        with dpg.child_window():
+            with dpg.plot(label="Gráfico de Banana Invertido (b* vs L*)", height=-1, width=-1):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="b* (Azul -> Amarelo)")
+                dpg.set_axis_limits(dpg.last_item(), -5, 50)
+                
+                with dpg.plot_axis(dpg.mvYAxis, label="L* (Escuro -> Claro)"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, 100)
+                    
+                    if tem_dados_reais:
+                        # CORRIGIDO: Removido o argumento "color="
+                        dpg.add_line_series(b_envelope, L_envelope, label="Envelope Real (Dados)", tag="linha_envelope")
+                    
+                    # CORRIGIDO: Removido o argumento "color="
+                    dpg.add_line_series([], [], label="Rastro", tag="linha_rastro")
+                    dpg.add_scatter_series([], [], label="Paciente Atual", tag="ponto_atual")
+
+# Chamada inicial
+atualizar_simulacao(None, None)
+
+dpg.create_viewport(title='Simulador Analítico (DearPyGui)', width=1220, height=820)
+dpg.setup_dearpygui()
+dpg.show_viewport()
+dpg.start_dearpygui()
+dpg.destroy_context()
