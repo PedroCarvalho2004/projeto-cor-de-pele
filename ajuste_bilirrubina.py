@@ -38,16 +38,14 @@ max_abs = np.max(abs_real) if len(abs_real) > 0 else 1.0
 # ==========================================
 Lambdas = np.linspace(380, 780, 400)
 
-def gauss(x, amp, mu, sigma):
+def gauss_asym(x, amp, mu, sig_left, sig_right):
+    sigma = np.where(x < mu, sig_left, sig_right)
+    sigma = np.where(sigma == 0, 1e-6, sigma) 
     return amp * np.exp(-0.5 * ((x - mu) / sigma)**2)
 
-# ---> MUDE ESTES 3 VALORES PARA ENCAIXAR A CURVA <---
-amp_bili   = max_abs * 0.95  # Altura do pico
-mu_bili    = 453.0           # Posição central (nm)
-sigma_bili = 32.0            # Largura do sino
 
 # Calcula a curva do seu modelo
-y_bili = gauss(Lambdas, amp_bili, mu_bili, sigma_bili)
+y_bili = gauss_asym(Lambdas, 1.85, 456, 43,20)
 
 # ==========================================
 # 3. PLOTAGEM ESTÁTICA
@@ -75,3 +73,4 @@ ax.legend(fontsize=12)
 
 plt.show()
 # %%
+

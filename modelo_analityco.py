@@ -233,7 +233,7 @@ def atualizar(val):
     if ((nb - historico_b[-1])**2 + (nL - historico_L[-1])**2)**0.5 > 0.5:
         historico_b.append(nb)
         historico_L.append(nL)
-        if len(historico_b) > 200:
+        if len(historico_b) > 30:
             historico_b.pop(0)
             historico_L.pop(0)
         rastro_banana.set_xdata(historico_b)
